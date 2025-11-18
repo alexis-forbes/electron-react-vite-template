@@ -178,6 +178,37 @@ From a developer experience (DX) point of view:
   - Add components/hooks/stores under `src/renderer/**`.
   - Use `window.api` (from preload) to talk to main.
 
+### Example: exposing `window.api` via preload
+
+In `src/preload.ts` (or a file it imports), use `contextBridge` to expose a small, safe API surface to the renderer:
+
+```ts
+import { contextBridge, ipcRenderer } from "electron";
+
+contextBridge.exposeInMainWorld("api", {
+  getUsers: () => ipcRenderer.invoke("users:get"),
+  onOrderUpdated: (callback: (order: unknown) => void) => {
+    ipcRenderer.on("orders:updated", (_event, payload) => callback(payload));
+  }
+});
+```
+
+In the renderer (e.g. a React component under `src/renderer/**`), you only talk to this API, not directly to `electron` or Node APIs:
+
+```ts
+// Types for window.api are typically declared in a global.d.ts file.
+
+window.api.getUsers().then(users => {
+  // update local/Zustand state with users
+});
+
+window.api.onOrderUpdated(order => {
+  // react to order updates (e.g. refresh list or update store)
+});
+```
+
+This pattern matches Electron's recommended approach: keep the renderer sandboxed and use preload as the only, well-defined bridge between React and the main process.
+
 Keep this rule in mind:
 
 - Renderer should **never** import `electron` or native modules directly.
@@ -199,3 +230,56 @@ For day-to-day work as a developer:
 - Put backend-ish code in `src/main/**`.
 - Put UI code in `src/renderer/**`.
 - Use `window.api` (from preload) as the only way for React to talk to Electron/Node.
+
+---
+
+## 7. Testing: unit vs e2e
+
+- **Unit tests (Vitest)**
+  - Folder: `tests/unit/**`.
+  - Uses `vitest.config.ts` with `environment: "jsdom"` and globals.
+  - Run locally:
+
+    ```bash
+    npm run test:unit
+    ```
+
+  - Good place for:
+    - Pure functions.
+    - React components/hooks that don’t need a real browser window.
+
+- **End-to-end tests (Playwright)**
+  - Folder: `tests/e2e/**`.
+  - Config: `playwright.config.ts` (Chromium, headless by default).
+  - Typical local flow:
+
+    ```bash
+    # one-time
+    npx playwright install
+
+    # terminal 1
+    npm run dev:renderer
+
+    # terminal 2
+    npm start
+
+    # terminal 3
+    npm run test:e2e
+    ```
+
+  - The example spec assumes the renderer is reachable at `http://localhost:5173`.
+
+- **Combined command**
+
+  ```bash
+  npm test
+  ```
+
+  - Runs both `test:unit` and `test:e2e`.
+
+- **CI behavior**
+  - GitHub Actions workflows for PRs and pushes to `main` currently run:
+    - `npm run check`
+    - `npm run build`
+    - `npm run test:unit`
+  - Playwright e2e tests are set up for local use and can be wired into CI later once the Electron + dev server lifecycle is defined.

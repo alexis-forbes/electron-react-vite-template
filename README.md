@@ -127,6 +127,48 @@ This separation keeps the UI isolated from Node/Electron and improves security.
 
 ## Typical flows
 
+### Runtime architecture overview
+
+```mermaid
+flowchart LR
+  subgraph Renderer[Renderer (React + Zustand)]
+    R1[React components]
+    R2[Zustand store]
+  end
+
+  subgraph Preload[Preload (contextBridge API)]
+    P1[window.api.*]
+  end
+
+  subgraph Main[Main process]
+    M1[IPC handlers]
+    M2[Domain services]
+  end
+
+  subgraph TCP[Main / TCP]
+    T1[TCP server]
+    T2[TCP client]
+  end
+
+  subgraph DB[Main / DB]
+    D1[better-sqlite3 connection]
+    D2[Repositories]
+  end
+
+  R1 -->|calls window.api.get*/send*| P1
+  P1 -->|IPC request| M1
+  M1 --> M2
+  M2 -->|queries| D2
+  D2 --> D1
+  M2 -->|send events| M1
+  M1 -->|IPC event| P1
+  P1 -->|notify / update| R2
+  R2 -->|state change| R1
+
+  T1 -->|incoming events| M2
+  M2 -->|outgoing messages| T2
+```
+
 ### 1. Renderer requests data from the DB
 
 1. A React component (in `src/renderer/features/...`) calls `window.api.getSomething()`.
@@ -158,6 +200,51 @@ This separation keeps the UI isolated from Node/Electron and improves security.
   - `npm run build:electron` → `tsc` build into `dist-electron`.
 - `electron-forge make` / `npm run make` first run `npm run build` and then package the app using the built files.
 
+### Dev → build → installer flow
+
+```mermaid
+flowchart LR
+  subgraph Dev[Development]
+    A[Editor / VS Code]
+    B[npm run dev:renderer]
+    C[npm start]
+  end
+
+  subgraph Renderer[Vite renderer]
+    D[Vite dev server<br/>http://localhost:5173]
+    E[Renderer build<br/>npm run build:renderer → dist/renderer]
+  end
+
+  subgraph Electron[Electron main + preload]
+    F[TypeScript build<br/>npm run build:electron → dist-electron]
+    G[Electron Forge start<br/>electron-forge start]
+  end
+
+  subgraph Packaging[Packaging / installers]
+    H[npm run build]
+    I[npm run make / package]
+    J[Forge makers<br/>Squirrel, ZIP, Deb, RPM]
+    K[Platform-specific installers / .exe]
+  end
+
+  A --> B
+  A --> C
+  B --> D
+  C --> F
+  C --> G
+  D --> G
+
+  H --> E
+  H --> F
+  E --> I
+  F --> I
+  I --> J
+  J --> K
+```
+
+- In **development**, you usually run `npm run dev:renderer` (Vite dev server) and `npm start` (Electron Forge) in parallel.
+- For **production builds**, `npm run build` compiles renderer and Electron code, and `npm run make`/`npm run package` turns them into platform installers using the makers configured in `forge.config.ts`.
+
 For a step-by-step explanation of concepts, folder structure and the dev/build flows, see **ONBOARDING.md**.
 
 ---
@@ -180,6 +267,32 @@ Husky + lint-staged:
 
 - `pre-commit` – runs `eslint --fix` and `prettier --write` on staged files.
 - `pre-push` – runs `npm run ts-check` to ensure there are no type errors.
+
+---
+
+## Testing
+
+- **Unit tests (Vitest)**
+  - Location: `tests/unit/**` (e.g. `tests/unit/example.test.ts`).
+  - Config: `vitest.config.ts` (JS DOM environment, globals enabled).
+  - Commands:
+    - `npm run test:unit` – run Vitest unit tests.
+
+- **End-to-end tests (Playwright)**
+  - Location: `tests/e2e/**` (e.g. `tests/e2e/example.spec.ts`).
+  - Config: `playwright.config.ts` (Chromium project, headless by default).
+  - Commands:
+    - `npm run test:e2e` – run Playwright tests.
+    - Requires the renderer to be available at `http://localhost:5173` (typically via `npm run dev:renderer` + `npm start`) and Playwright browsers installed (`npx playwright install`).
+
+- **Combined test command**
+  - `npm test` – runs both `test:unit` and `test:e2e`.
+
+- **CI**
+  - GitHub Actions workflows under `.github/workflows/` currently run:
+    - `npm run check`
+    - `npm run build`
+    - `npm run test:unit`
 
 ---
 
