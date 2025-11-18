@@ -8,7 +8,7 @@ Desktop application template built with:
 - Bootstrap + SCSS for UI
 - Vitest for unit tests
 - ESLint + Prettier + Husky + lint-staged
-- Infrastructure ready for native DB (better-sqlite3) and TCP event handling
+- Local SQLite via **sql.js** (pure JS/WASM client) and TCP event handling, with an optional remote backend (e.g. Postgres/MySQL) for online sync
 
 ---
 
@@ -21,7 +21,8 @@ Desktop application template built with:
 - Keep **domain and business logic** outside of the UI layer.
 - Make it easy to add:
   - **TCP** handling (client/server) in the `main` process.
-  - Database access using **better-sqlite3**.
+  - **Local SQLite** access using **sql.js** (no native build toolchain required).
+  - An **optional remote backend** (e.g. Postgres/MySQL) that the app can sync with when online.
   - New React UI features without tight coupling to Electron.
 
 ---
@@ -104,24 +105,37 @@ Socket handling (TCP server or client) should live in `main`:
     - `main` ↔ `preload` ↔ `renderer`.
   - In `preload/api`, expose functions like `window.api.sendTcpMessage(...)` or `window.api.onTcpEvent(...)`.
 
-### 2. Database (better-sqlite3) in `main`
+### 2. Database and sync model
 
-`better-sqlite3` is native and should run only in `main`:
+The recommended pattern for this template is **offline-first with optional online sync**:
 
-- Suggested files:
+- **Local DB (always available)**
+  - Use a **local SQLite file** managed from the `main` process.
+  - The default client is **sql.js** (WASM), which avoids native builds on Windows.
+  - Suggested files:
 
-  - `src/main/db/connection.ts` – open the connection and manage the DB handle.
-  - `src/main/db/repositories/*` – per-table repositories and specific queries.
-  - `src/main/services/*` – orchestrate business rules using repos and TCP.
+    - `src/main/db/connection.ts` – load/create the SQLite database using sql.js and manage the in-memory handle.
+    - `src/main/db/repositories/*` – per-table repositories and specific queries.
+    - `src/main/services/*` – orchestrate business rules using repos, TCP, and sync.
 
-- Exposing DB operations to the renderer:
+- **Remote DB (optional, online only)**
+  - A separate backend service (Express/Nest/Fastify, etc.) using Postgres/MySQL via `pg`, `mysql2`, Prisma, Knex, etc.
+  - Exposes an HTTP/REST/GraphQL/WebSocket API.
 
-  - Never expose the raw DB client directly to the renderer.
-  - Use IPC + preload to expose high-level methods:
-    - `window.api.getUsers()`
-    - `window.api.saveOrder(order)`
+- **Sync layer (in main)**
+  - When the app is **online**, a sync service in `main`:
+    - Uploads local changes from SQLite to the remote API.
+    - Pulls remote changes into the local SQLite DB.
+    - Applies simple conflict resolution rules (e.g. last-write-wins) as needed.
 
-This separation keeps the UI isolated from Node/Electron and improves security.
+Exposing DB operations to the renderer:
+
+- Never expose the raw DB client directly to the renderer.
+- Use IPC + preload to expose high-level methods:
+  - `window.api.getUsers()`
+  - `window.api.saveOrder(order)`
+
+This separation keeps the UI isolated from Node/Electron and improves security, while also keeping the DB and sync logic in one place (the main process).
 
 ---
 
@@ -151,8 +165,12 @@ flowchart LR
   end
 
   subgraph DB
-    D1[better-sqlite3 connection]
+    D1[Local SQLite via sql.js]
     D2[Repositories]
+  end
+
+  subgraph Remote[Remote backend (optional)]
+    RDB[Postgres/MySQL + API]
   end
 
   R1 -->|calls window.api.get*/send*| P1
@@ -160,6 +178,7 @@ flowchart LR
   M1 --> M2
   M2 -->|queries| D2
   D2 --> D1
+  M2 -->|sync when online| RDB
   M2 -->|send events| M1
   M1 -->|IPC event| P1
   P1 -->|notify / update| R2
@@ -298,24 +317,27 @@ Husky + lint-staged:
 
 ---
 
-## Native addons and Windows (better-sqlite3)
+## Local SQLite vs native addons on Windows
 
-Some libraries we might use in the **main** process (for example `better-sqlite3` for SQLite) are **native Node addons**. That means:
+By default, this template uses **sql.js** (a pure JS/WASM SQLite client) for local storage in the **main** process. This has a big advantage for Windows developers:
+
+- There is **no native build step** during `npm install`.
+- You do **not** need Visual Studio Build Tools, Windows SDK, or Python just to get the template running.
+
+However, some teams may prefer a native addon like `better-sqlite3` for maximum performance. Native addons are different:
 
 - Part of the library is written in **C/C++** and compiled into a `.node` binary.
-- During `npm install`, Node needs to **compile** that code for your machine.
+- During `npm install`, Node needs to **compile** that code for your machine via `node-gyp`.
 
-On Windows this only works if you have:
+On Windows, native addons like `better-sqlite3` only build successfully if you have:
 
 - **Visual Studio Build Tools** with the "Desktop development with C++" workload.
-- **Windows SDK** (usually comes with that workload).
+- **Windows SDK** (usually installed with that workload).
 - **Python 3** in your PATH (used by `node-gyp`).
 
-If these are missing, `npm install better-sqlite3` (or any similar native addon) will fail with build errors, and the Electron app will not be able to load the module at runtime.
+If these are missing, `npm install better-sqlite3` (or similar) will fail with build errors, and the Electron app will not be able to load the module at runtime.
 
-In this template, all SQLite/DB access is intended to live in the **Electron main process** (never in the renderer). So when we choose a native addon like `better-sqlite3`, every developer on Windows needs this toolchain installed once; CI will also need an image that can build native modules.
-
-If you prefer to avoid native builds completely, an alternative is a pure JS/WASM client such as `sql.js`, but it comes with its own trade-offs (extra work to manage the SQLite file and typically lower performance).
+In this template, all SQLite/DB access is still intended to live in the **Electron main process** (never in the renderer). You can start with the default `sql.js` setup for a smoother Windows experience and later opt into a native addon if your performance requirements justify the extra toolchain setup.
 
 ---
 
@@ -406,7 +428,7 @@ executes `npm run check` first, then launches `electron-forge start`, giving you
 Short term:
 
 - Implement a simple TCP module in `src/main/tcp/`.
-- Implement an initial repository using better-sqlite3 in `src/main/db/`.
+- Implement an initial repository using local SQLite via `sql.js` in `src/main/db/`.
 - Expose 2–3 API methods in `preload/api`.
 - Create an example feature in `src/renderer/features/` that consumes this API.
 

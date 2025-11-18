@@ -58,6 +58,7 @@
     "@types/electron-squirrel-startup": "^1.0.2",
     "@types/react": "^19.2.6",
     "@types/react-dom": "^19.2.3",
+    "@types/sql.js": "^1.4.9",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
     "@typescript-eslint/parser": "^5.62.0",
     "@vitejs/plugin-react": "^4.7.0",
@@ -86,6 +87,7 @@
     "electron-squirrel-startup": "^1.0.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "sql.js": "^1.11.0",
     "zustand": "^5.0.8"
   }
 }

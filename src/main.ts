@@ -2,6 +2,11 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import started from "electron-squirrel-startup";
 import path from "node:path";
 
+import {
+  addDemoNote,
+  getDemoNotes,
+  syncDemoNotes
+} from "./main/services/dbDemoService";
 import { startTcpDemoServer } from "./main/tcp/server";
 import type { TcpMessage } from "./shared/types/tcp";
 
@@ -46,6 +51,19 @@ const createWindow = () => {
     };
 
     event.sender.send("tcp:message", message);
+  });
+
+  // DB demo handlers (offline local SQLite via sql.js + fake online sync).
+  ipcMain.handle("dbDemo:getNotes", async () => {
+    return getDemoNotes();
+  });
+
+  ipcMain.handle("dbDemo:addNote", async (_event, text: string) => {
+    return addDemoNote(text);
+  });
+
+  ipcMain.handle("dbDemo:sync", async () => {
+    return syncDemoNotes();
   });
 };
 

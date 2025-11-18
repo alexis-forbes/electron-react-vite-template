@@ -1,5 +1,6 @@
 import React from "react";
 
+import DbDemo from "../features/dbDemo/DbDemo";
 import { TcpMessages } from "../features/tcp/TcpMessages";
 import { useCounterStore } from "../store/useCounterStore";
 
@@ -25,6 +26,7 @@ const App: React.FC = () => {
       </div>
 
       <TcpMessages />
+      <DbDemo />
     </div>
   );
 };

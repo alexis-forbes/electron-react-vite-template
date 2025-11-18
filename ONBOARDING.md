@@ -4,6 +4,39 @@ This document is meant as a simple, straight‑to‑the‑point explanation of h
 
 ---
 
+### Online + offline data model (how DB and sync fit in)
+
+The recommended pattern for this template is **offline-first with optional
+online sync**:
+
+- **Local SQLite (always available)**
+  - Lives in the `main` process, backed by a `.sqlite`/`.db` file.
+  - Accessed via `sql.js` (pure JS/WASM) to avoid native builds.
+  - Your domain services in `src/main/services/**` call repositories in
+    `src/main/db/**`.
+
+- **Remote backend (optional, only when online)**
+  - A separate Node backend (Express/Nest/Fastify, etc.) that uses Postgres or
+    MySQL with `pg`, `mysql2`, Prisma, Knex, etc.
+  - Exposes an HTTP/REST/GraphQL/WebSocket API for your Electron app and any
+    future web/mobile clients.
+
+- **Sync layer (in main)**
+  - A small service in `src/main/services/**` that:
+    - Reads pending local changes from SQLite and sends them to the backend.
+    - Fetches remote changes from the backend and applies them to SQLite.
+    - Implements simple conflict rules (e.g. last-write-wins) if needed.
+
+From the renderer’s point of view nothing changes:
+
+- React talks only to `window.api`.
+- `window.api` is implemented in preload and calls into services in `main`.
+- Main decides whether to hit only the local DB (offline) or also talk to the
+  remote backend (online + sync).
+
+This keeps the UI simple while giving you a clear place to evolve your data
+layer over time.
+
 ## 1. Big picture: what runs where?
 
 - **Electron Forge**
@@ -31,12 +64,23 @@ Electron Forge no longer uses the Forge Vite plugin. Instead, you:
 
 ---
 
-### Native addons on Windows (better-sqlite3)
+### Local SQLite by default, native addons as an option
 
-If you add a native addon like `better-sqlite3` for SQLite in the **main** process,
-Node needs to compile some C/C++ code during `npm install`.
+This template assumes a **local SQLite database** for offline work, plus an
+optional remote backend (Postgres/MySQL via an API) for online sync. The
+default local client is **sql.js**, which runs SQLite in WebAssembly inside the
+Electron main process.
 
-On Windows this requires a system toolchain:
+Using `sql.js` has two big consequences:
+
+- There is **no native build step** when you run `npm install`.
+- Windows developers do **not** need Visual Studio Build Tools, Windows SDK or
+  Python just to get the template running.
+
+If you later decide you need maximum performance and are comfortable with the
+Windows build toolchain, you can swap in a native addon like `better-sqlite3`.
+Native addons are different in that they compile C/C++ code during
+`npm install`:
 
 - Visual Studio Build Tools with the **"Desktop development with C++"** workload.
 - Windows SDK (usually installed with that workload).
@@ -45,12 +89,8 @@ On Windows this requires a system toolchain:
 These tools are required by Windows and Node, not by your IDE. Even if you use
 WindSurf, VS Code, or another editor, Node's build system still calls the MSVC
 compiler and Windows SDK that come from Visual Studio Build Tools. Without
-them, `npm install better-sqlite3` will fail and the main process will not be
-able to load the module.
-
-If you later decide to avoid native addons, you can switch to a pure JS/WASM
-SQLite client like `sql.js`, at the cost of managing the `.db` file yourself
-and typically lower performance compared to `better-sqlite3`.
+them, `npm install better-sqlite3` (or similar native addons) will fail and the
+main process will not be able to load the module.
 
 ---
 

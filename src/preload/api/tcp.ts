@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer } from "electron";
 
 import type { TcpMessage } from "../../shared/types/tcp";
 
+import { dbDemoApi } from "./dbDemo";
+
 export type TcpMessageHandler = (message: TcpMessage) => void;
 
 const onTcpMessage = (handler: TcpMessageHandler): void => {
@@ -15,6 +17,7 @@ const onTcpMessage = (handler: TcpMessageHandler): void => {
 
 export const exposeTcpApi = (): void => {
   contextBridge.exposeInMainWorld("api", {
-    onTcpMessage
+    onTcpMessage,
+    dbDemo: dbDemoApi
   });
 };
