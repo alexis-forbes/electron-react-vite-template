@@ -31,6 +31,29 @@ Electron Forge no longer uses the Forge Vite plugin. Instead, you:
 
 ---
 
+### Native addons on Windows (better-sqlite3)
+
+If you add a native addon like `better-sqlite3` for SQLite in the **main** process,
+Node needs to compile some C/C++ code during `npm install`.
+
+On Windows this requires a system toolchain:
+
+- Visual Studio Build Tools with the **"Desktop development with C++"** workload.
+- Windows SDK (usually installed with that workload).
+- Python 3 in your `PATH` (used by `node-gyp`).
+
+These tools are required by Windows and Node, not by your IDE. Even if you use
+WindSurf, VS Code, or another editor, Node's build system still calls the MSVC
+compiler and Windows SDK that come from Visual Studio Build Tools. Without
+them, `npm install better-sqlite3` will fail and the main process will not be
+able to load the module.
+
+If you later decide to avoid native addons, you can switch to a pure JS/WASM
+SQLite client like `sql.js`, at the cost of managing the `.db` file yourself
+and typically lower performance compared to `better-sqlite3`.
+
+---
+
 ## 2. Folder & file structure (where to put what)
 
 At the root:

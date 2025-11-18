@@ -275,6 +275,8 @@ Husky + lint-staged:
 - **Unit tests (Vitest)**
   - Location: `tests/unit/**` (e.g. `tests/unit/example.test.ts`).
   - Config: `vitest.config.ts` (JS DOM environment, globals enabled).
+  - Uses `jsdom` under the hood to provide a browser-like `window`/`document` so React components and hooks can be tested without a real browser.
+    Vitest does **not** bundle `jsdom` itself; because the test environment is set to `"jsdom"`, the `jsdom` package must be installed as a dev dependency, otherwise `npm run test:unit` will fail with a missing dependency error.
   - Commands:
     - `npm run test:unit` – run Vitest unit tests.
 
@@ -293,6 +295,27 @@ Husky + lint-staged:
     - `npm run check`
     - `npm run build`
     - `npm run test:unit`
+
+---
+
+## Native addons and Windows (better-sqlite3)
+
+Some libraries we might use in the **main** process (for example `better-sqlite3` for SQLite) are **native Node addons**. That means:
+
+- Part of the library is written in **C/C++** and compiled into a `.node` binary.
+- During `npm install`, Node needs to **compile** that code for your machine.
+
+On Windows this only works if you have:
+
+- **Visual Studio Build Tools** with the "Desktop development with C++" workload.
+- **Windows SDK** (usually comes with that workload).
+- **Python 3** in your PATH (used by `node-gyp`).
+
+If these are missing, `npm install better-sqlite3` (or any similar native addon) will fail with build errors, and the Electron app will not be able to load the module at runtime.
+
+In this template, all SQLite/DB access is intended to live in the **Electron main process** (never in the renderer). So when we choose a native addon like `better-sqlite3`, every developer on Windows needs this toolchain installed once; CI will also need an image that can build native modules.
+
+If you prefer to avoid native builds completely, an alternative is a pure JS/WASM client such as `sql.js`, but it comes with its own trade-offs (extra work to manage the SQLite file and typically lower performance).
 
 ---
 
