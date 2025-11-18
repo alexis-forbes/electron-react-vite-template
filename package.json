@@ -37,7 +37,7 @@
   "husky": {
     "hooks": {
       "pre-commit": "npx lint-staged",
-      "pre-push": "npm run ts-check"
+      "pre-push": "npm run check"
     }
   },
   "devDependencies": {
