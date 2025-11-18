@@ -80,40 +80,29 @@ Planned structure as the app grows (from README):
 
 ## 3. Dev workflow: what command to run and what happens
 
-### Commands to run
+### Commands to run (development)
 
-Dev is now a **two-terminal** flow:
+Dev is now a **single-command** flow that still uses two processes under the hood (Vite + Electron Forge), but they are started for you in parallel:
 
-1. Start the Vite dev server for the renderer:
-
-   ```bash
-   npm run dev:renderer
-   ```
-
-   - Uses `vite.renderer.config.ts`.
-   - Serves the React UI on `http://localhost:5173`.
-
-2. In another terminal, start Electron Forge:
-
-   ```bash
-   npm start
-   ```
-
-### What `npm start` actually does
-
-From `package.json`:
-
-```json
-"scripts": {
-  "start": "npm run check && npm run build:electron && electron-forge start",
-  "check": "npm run lint && npm run ts-check:electron && npm run ts-check:renderer"
-}
+```bash
+npm start
+# or explicitly
+npm run dev
 ```
 
-So when you run `npm start`:
+This script runs:
 
-1. **Lint & type-check**
-   - `npm run lint`
+- `dev:renderer` → Vite dev server using `vite.renderer.config.ts`.
+  - Serves the React UI on `http://localhost:5173`.
+- `start:electron` → `npm run check && npm run build:electron && electron-forge start`.
+  - Runs lint + type-check (`check`).
+  - Builds main/preload into `dist-electron`.
+  - Starts Electron Forge, which launches the Electron app.
+
+Behind the scenes, when `start:electron` runs, it:
+
+1. **Lint & type-check** via `npm run check`:
+   - `npm run lint`.
    - `npm run ts-check:electron` (TypeScript check for main + preload using `tsconfig.electron.json`).
    - `npm run ts-check:renderer` (TypeScript check for renderer + shared using `tsconfig.json`).
 2. **Build Electron main/preload**
@@ -125,7 +114,7 @@ So when you run `npm start`:
 
 From a developer experience (DX) point of view:
 
-- You run **two commands**: `npm run dev:renderer` + `npm start`.
+- You run **one command**: `npm start` (or `npm run dev`).
 - Renderer code changes get hot reload via Vite.
 - Changes in `src/main.ts` or `src/preload.ts` cause `build:electron`/Forge to pick up the new code.
 
@@ -133,25 +122,34 @@ From a developer experience (DX) point of view:
 
 ## 4. Build / package workflow
 
-### Commands
+### Commands (production / packaging)
 
-- **Full build** (renderer + electron):
+- **Full build only** (renderer + Electron, no installers):
 
   ```bash
   npm run build
   ```
 
-- **Make installers** with Electron Forge:
+  - Runs `build:renderer` and `build:electron`:
+    - `npm run build:renderer` → Vite builds the React UI into `dist/renderer`.
+    - `npm run build:electron` → `tsc` builds main + preload into `dist-electron`.
+
+- **Make installers with Electron Forge** (build + package):
 
   ```bash
   npm run make
   ```
 
-- **Package without installers**:
+  - Internally runs `npm run build` **first**, then calls `electron-forge make`.
+  - You do **not** need to run `npm run build` manually before `npm run make`.
+
+- **Package app without installers** (build + package):
 
   ```bash
   npm run package
   ```
+
+  - Internally runs `npm run build` **first**, then calls `electron-forge package`.
 
 ### What happens when building/making
 

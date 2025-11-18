@@ -131,26 +131,26 @@ This separation keeps the UI isolated from Node/Electron and improves security.
 
 ```mermaid
 flowchart LR
-  subgraph Renderer[Renderer (React + Zustand)]
+  subgraph Renderer
     R1[React components]
     R2[Zustand store]
   end
 
-  subgraph Preload[Preload (contextBridge API)]
+  subgraph Preload
     P1[window.api.*]
   end
 
-  subgraph Main[Main process]
+  subgraph Main
     M1[IPC handlers]
     M2[Domain services]
   end
 
-  subgraph TCP[Main / TCP]
+  subgraph TCP
     T1[TCP server]
     T2[TCP client]
   end
 
-  subgraph DB[Main / DB]
+  subgraph DB
     D1[better-sqlite3 connection]
     D2[Repositories]
   end

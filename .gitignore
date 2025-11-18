@@ -88,5 +88,11 @@ typings/
 # Vite
 .vite/
 
+# Playwright
+playwright-report/
+
+# Electron
+dist-electron/
+
 # Electron-Forge
 out/
