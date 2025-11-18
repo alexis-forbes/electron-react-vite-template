@@ -3,7 +3,7 @@
   "compilerOptions": {
     "module": "CommonJS",
     "lib": ["ES2022"],
-    "types": ["node", "electron", "@electron-forge/plugin-vite/forge-vite-env"],
+    "types": ["node", "electron"],
     "outDir": "dist-electron"
   },
   "include": [

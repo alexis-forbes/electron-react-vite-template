@@ -149,13 +149,14 @@ This separation keeps the UI isolated from Node/Electron and improves security.
 ## Runtime and build overview
 
 - Electron Forge orchestrates the app lifecycle and packaging.
-- The `@electron-forge/plugin-vite` plugin wires Vite into Electron:
-  - Builds `src/main.ts` (main process), `src/preload.ts` (preload) and the React renderer.
-  - In **development**, it starts a Vite dev server and injects globals like `MAIN_WINDOW_VITE_DEV_SERVER_URL` and `MAIN_WINDOW_VITE_NAME` that `src/main.ts` uses to decide whether to load the dev server URL or the built renderer.
-- `npm start` runs `npm run check` (lint + type-check) and then `electron-forge start`, which:
-  - Starts the Vite dev server(s).
-  - Launches Electron and opens the main window pointing at the dev server.
-- `electron-forge make` / `npm run make` build the production bundles with Vite and package the app.
+- The Electron **main** and **preload** processes are built with TypeScript (`tsc`) using `tsconfig.electron.json`.
+- The React **renderer** is built and served by Vite using `vite.renderer.config.ts`:
+  - In **development**, you run a Vite dev server on `http://localhost:5173`.
+  - The main process checks `app.isPackaged` and either loads that dev URL (dev) or `dist/renderer/index.html` (prod).
+- `npm run build` runs:
+  - `npm run build:renderer` → Vite build into `dist/renderer`.
+  - `npm run build:electron` → `tsc` build into `dist-electron`.
+- `electron-forge make` / `npm run make` first run `npm run build` and then package the app using the built files.
 
 For a step-by-step explanation of concepts, folder structure and the dev/build flows, see **ONBOARDING.md**.
 
@@ -165,7 +166,12 @@ For a step-by-step explanation of concepts, folder structure and the dev/build f
 
 In `package.json`:
 
-- `npm start` – run Electron Forge + Vite dev environment.
+- `npm start` – lint + type-check, build Electron (main/preload) with `tsc`, then run `electron-forge start`.
+- `npm run dev:renderer` – start the Vite dev server for the React renderer.
+- `npm run build:renderer` – build the renderer into `dist/renderer`.
+- `npm run build:electron` – build main+preload into `dist-electron` using `tsconfig.electron.json`.
+- `npm run build` – run both `build:renderer` and `build:electron`.
+- `npm run make` / `npm run package` – run a full build and then package the app with Electron Forge.
 - `npm run lint` – run ESLint over `.ts`/`.tsx`.
 - `npm run lint:fix` – apply autofixes (including import reordering).
 - `npm run ts-check` – run `tsc --noEmit` (used in the pre-push hook).

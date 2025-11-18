@@ -8,36 +8,26 @@ This document is meant as a simple, straight‑to‑the‑point explanation of h
 
 - **Electron Forge**
   - CLI & tooling that runs Electron in dev and builds installers in prod.
-  - Reads `forge.config.ts` to know how to start/build.
+  - Reads `forge.config.ts` to know how to start/build and how to package.
 - **Electron**
   - Runs your desktop app.
   - Has three main parts in this template:
     - `main` process – Node.js environment with access to the OS, DB, TCP, etc.
     - `preload` – a small script that runs in the renderer, but with limited Node access; it exposes a safe `window.api`.
     - `renderer` – the React UI (browser-like environment, no direct Node/electron imports).
-- **Vite**
-  - Builds your TypeScript / React code.
-  - Also runs a **dev server** in development for fast reloads.
-- **@electron-forge/plugin-vite**
-  - Connects Vite and Electron Forge.
-  - Knows how to build:
-    - `src/main.ts` (using `vite.main.config.ts`).
-    - `src/preload.ts` (using `vite.preload.config.ts`).
-    - React renderer (using `vite.renderer.config.ts`).
-  - In dev, it starts the Vite dev server and injects some **globals** (like `MAIN_WINDOW_VITE_DEV_SERVER_URL`) so the main process knows where to load the UI from.
+- **TypeScript (`tsc`) for main/preload**
+  - `tsconfig.electron.json` compiles `src/main.ts` and `src/preload.ts` into `dist-electron`.
+  - `package.json` points Electron’s `main` entry to `dist-electron/main.js`.
+- **Vite for the renderer**
+  - `vite.renderer.config.ts` builds and serves the React UI.
+  - In dev, Vite runs a **dev server** (HMR, fast reload) on `http://localhost:5173`.
+  - In prod, Vite builds static assets into `dist/renderer`.
 
-### Quick FAQ
+Electron Forge no longer uses the Forge Vite plugin. Instead, you:
 
-- **Q: Why does `electron-forge start` also start the Vite dev server?**
-  - Because `forge.config.ts` registers `@electron-forge/plugin-vite` in the `plugins` array.
-  - When Forge runs `start`, it loads that plugin, which in turn starts Vite using your `vite.*.config.ts` files and wires everything into Electron.
-
-- **Q: Where do `MAIN_WINDOW_VITE_DEV_SERVER_URL` and `MAIN_WINDOW_VITE_NAME` get their values?**
-  - You *do not* set them in your code. The Vite plugin injects them when it builds/runs the main process bundle.
-  - At runtime:
-    - `MAIN_WINDOW_VITE_DEV_SERVER_URL` is a URL in dev (e.g. `http://localhost:<port>/main_window`) and `undefined` in prod.
-    - `MAIN_WINDOW_VITE_NAME` comes from the `renderer.name` field in `forge.config.ts` (here: `"main_window"`).
-  - The `declare const ...` lines you see are only TypeScript declarations (in `.d.ts`), so the compiler/IDE know these globals exist and what type they have; they do not assign any values.
+- Run Vite yourself for the renderer.
+- Use `tsc` to build main/preload.
+- Let Electron Forge just run/package the built main process.
 
 ---
 
@@ -46,12 +36,8 @@ This document is meant as a simple, straight‑to‑the‑point explanation of h
 At the root:
 
 - `forge.config.ts`
-  - Electron Forge config.
-  - Registers the Vite plugin and defines build targets and renderer name.
-- `vite.main.config.ts`
-  - Vite config for **main** (Electron main process entry `src/main.ts`).
-- `vite.preload.config.ts`
-  - Vite config for **preload** (entry `src/preload.ts`).
+  - Electron Forge config (makers, packager config, fuses).
+  - Does **not** use the Forge Vite plugin anymore.
 - `vite.renderer.config.ts`
   - Vite config for the **renderer** (React UI entry `src/renderer.tsx`).
 - `index.html`
@@ -92,76 +78,34 @@ Planned structure as the app grows (from README):
 
 ---
 
-## 3. How dev server & globals work
+## 3. Dev workflow: what command to run and what happens
 
-The main process needs to know **what to load in the BrowserWindow**:
+### Commands to run
 
-- In **development**: load the Vite dev server URL (e.g. `http://localhost:5123`).
-- In **production**: load the built `index.html` from disk.
+Dev is now a **two-terminal** flow:
 
-The Electron Forge Vite plugin solves this by injecting **globals** when it runs:
+1. Start the Vite dev server for the renderer:
 
-- `MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined`
-  - In dev: something like `http://localhost:5123/main_window`.
-  - In prod: `undefined`.
-- `MAIN_WINDOW_VITE_NAME: string`
-  - Name of the renderer from `forge.config.ts` → here `"main_window"`.
+   ```bash
+   npm run dev:renderer
+   ```
 
-In `forge.config.ts` you can see:
+   - Uses `vite.renderer.config.ts`.
+   - Serves the React UI on `http://localhost:5173`.
 
-```ts
-renderer: [
-  {
-    name: "main_window",
-    config: "vite.renderer.config.ts"
-  }
-]
-```
+2. In another terminal, start Electron Forge:
 
-In `src/main.ts`, the code uses these globals:
+   ```bash
+   npm start
+   ```
 
-```ts
-if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-  mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
-} else {
-  mainWindow.loadFile(
-    path.join(
-      __dirname,
-      `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`
-    )
-  );
-}
-```
-
-Meaning:
-
-- **Dev**: global is set → `loadURL` with the dev server.
-- **Prod**: global is not set → `loadFile` from the Vite build output at `.vite/renderer/<MAIN_WINDOW_VITE_NAME>/index.html`.
-
-There is also a small `src/electron-vite-globals.d.ts` file that tells TypeScript these globals exist:
-
-```ts
-declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
-declare const MAIN_WINDOW_VITE_NAME: string;
-```
-
----
-
-## 4. Dev workflow: what command to run and what happens
-
-### Command to run
-
-```bash
-npm start
-```
-
-### What the command actually does
+### What `npm start` actually does
 
 From `package.json`:
 
 ```json
 "scripts": {
-  "start": "npm run check && electron-forge start",
+  "start": "npm run check && npm run build:electron && electron-forge start",
   "check": "npm run lint && npm run ts-check:electron && npm run ts-check:renderer"
 }
 ```
@@ -172,56 +116,56 @@ So when you run `npm start`:
    - `npm run lint`
    - `npm run ts-check:electron` (TypeScript check for main + preload using `tsconfig.electron.json`).
    - `npm run ts-check:renderer` (TypeScript check for renderer + shared using `tsconfig.json`).
-2. **Start Electron Forge dev**
-   - `electron-forge start` reads `forge.config.ts`.
-   - The Vite plugin:
-     - Starts Vite dev server(s) using your Vite configs.
-     - Injects the globals (`MAIN_WINDOW_VITE_DEV_SERVER_URL`, `MAIN_WINDOW_VITE_NAME`).
-   - Electron is launched with the compiled main process.
-   - `src/main.ts` creates a window and:
-     - In dev, loads the Vite dev server URL (fast HMR, React dev tools, etc.).
+2. **Build Electron main/preload**
+   - `npm run build:electron` → `tsc` builds to `dist-electron`.
+3. **Start Electron Forge dev**
+   - `electron-forge start` runs `dist-electron/main.js`.
+   - `src/main.ts` checks `app.isPackaged`:
+     - In dev (`!app.isPackaged`), it loads `http://localhost:5173` (the Vite dev server).
 
 From a developer experience (DX) point of view:
 
-- You **only need** `npm start` for local dev.
-- Code changes in `src/renderer.tsx`, React components, etc. trigger hot reload via Vite.
-- Changes in `src/main.ts` or `src/preload.ts` typically restart the Electron process (Forge handles it).
+- You run **two commands**: `npm run dev:renderer` + `npm start`.
+- Renderer code changes get hot reload via Vite.
+- Changes in `src/main.ts` or `src/preload.ts` cause `build:electron`/Forge to pick up the new code.
 
 ---
 
-## 5. Build / package workflow
+## 4. Build / package workflow
 
 ### Commands
 
-- **Quick build for packaging** (via Electron Forge):
+- **Full build** (renderer + electron):
+
+  ```bash
+  npm run build
+  ```
+
+- **Make installers** with Electron Forge:
 
   ```bash
   npm run make
   ```
 
-- **Package without making installers** (if you add a `package` script, or use `electron-forge package` directly):
+- **Package without installers**:
 
   ```bash
-  npx electron-forge package
+  npm run package
   ```
 
 ### What happens when building/making
 
-1. Electron Forge runs the Vite plugin in **build mode**.
-2. Vite builds:
-   - Main process (`src/main.ts`) using `vite.main.config.ts`.
-   - Preload (`src/preload.ts`) using `vite.preload.config.ts`.
-   - Renderer (`src/renderer.tsx`) using `vite.renderer.config.ts`.
-3. Outputs go under the `.vite` directory (by default), including the renderer under something like:
-   - `.vite/renderer/main_window/index.html`
-4. The packaged Electron app uses the **same `src/main.ts` logic**:
-   - `MAIN_WINDOW_VITE_DEV_SERVER_URL` is not set.
-   - It loads the built HTML with `loadFile(path.join(__dirname, "../renderer/.../index.html"))`.
-5. Forge then creates platform-specific bundles (e.g. `.exe`, `.dmg`, etc.) using makers configured in `forge.config.ts`.
+1. `npm run build` runs:
+   - `npm run build:renderer` → Vite builds the React UI into `dist/renderer`.
+   - `npm run build:electron` → `tsc` builds main + preload into `dist-electron`.
+2. `npm run make` / `npm run package` then run Electron Forge:
+   - Forge uses `dist-electron/main.js` as the Electron entry (see `package.json.main`).
+   - At runtime, `app.isPackaged === true`, so `src/main.ts` loads `../renderer/index.html` relative to `dist-electron/main.js`.
+   - Forge creates platform-specific bundles using the makers in `forge.config.ts`.
 
 ---
 
-## 6. Where to add your code in practice
+## 5. Where to add your code in practice
 
 - **New backend feature (TCP, DB, services)**
   - Add files under `src/main/` (e.g. `src/main/tcp/server.ts`, `src/main/db/connection.ts`, `src/main/services/userService.ts`).
@@ -241,7 +185,7 @@ Keep this rule in mind:
 
 ---
 
-## 7. Quick mental model
+## 6. Quick mental model
 
 - **Electron Forge** = "Project runner + packager".
 - **Vite** = "Builder + dev server".

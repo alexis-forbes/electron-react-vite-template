@@ -21,12 +21,14 @@ const createWindow = () => {
   });
 
   // and load the index.html of the app.
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+  const isDev = !app.isPackaged;
+
+  if (isDev) {
+    // In development, load the Vite dev server for the renderer.
+    mainWindow.loadURL("http://localhost:5173");
   } else {
-    mainWindow.loadFile(
-      path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`)
-    );
+    // In production, load the built renderer HTML from the Vite build output.
+    mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
   }
 
   // Start demo TCP server after the window is ready.
