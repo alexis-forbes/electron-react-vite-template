@@ -11,8 +11,9 @@
     "make": "electron-forge make",
     "publish": "electron-forge publish",
     "lint": "eslint --ext .ts,.tsx .",
+    "lint:fix": "eslint --ext .ts,.tsx . --fix",
     "prepare": "husky",
-    "ts-check": "npm run ts-check"
+    "ts-check": "tsc --noEmit"
   },
   "keywords": [],
   "author": {
