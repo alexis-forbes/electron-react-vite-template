@@ -90,6 +90,8 @@ typings/
 
 # Playwright
 playwright-report/
+.last-run.json
+test-results/
 
 # Electron
 dist-electron/
