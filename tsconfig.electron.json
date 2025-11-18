@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "lib": ["ES2022"],
+    "types": ["node", "electron", "@electron-forge/plugin-vite/forge-vite-env"],
+    "outDir": "dist-electron"
+  },
+  "include": [
+    "src/main.ts",
+    "src/preload.ts",
+    "src/main/**/*",
+    "src/preload/**/*"
+  ]
+}

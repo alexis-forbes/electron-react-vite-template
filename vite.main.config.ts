@@ -1,16 +1,12 @@
-import { defineConfig, ServerOptions } from "vite";
+import react from "@vitejs/plugin-react";
+import { defineConfig } from "vite";
 
-export const viteServer: ServerOptions = {
-  port: 8000,
-  strictPort: true,
-  hmr: {
-    protocol: "http",
-    host: "localhost",
-    clientPort: 8000
-  }
-};
-
-// https://vitejs.dev/config
+// https://vite.dev/config/
 export default defineConfig({
-  server: viteServer
+  plugins: [react()],
+  base: ".",
+  server: {
+    port: 5123,
+    strictPort: true
+  }
 });

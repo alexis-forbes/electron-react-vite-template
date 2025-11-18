@@ -1,8 +1,9 @@
 import React from "react";
 
-import { useCounterStore } from "./store/useCounterStore";
+import { TcpMessages } from "../features/tcp/TcpMessages";
+import { useCounterStore } from "../store/useCounterStore";
 
-import "./index.scss";
+import "../styles/index.scss";
 
 const App: React.FC = () => {
   const { count, increment, decrement } = useCounterStore();
@@ -22,6 +23,8 @@ const App: React.FC = () => {
           +
         </button>
       </div>
+
+      <TcpMessages />
     </div>
   );
 };

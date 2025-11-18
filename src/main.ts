@@ -1,6 +1,9 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
 import started from "electron-squirrel-startup";
 import path from "node:path";
+
+import { startTcpDemoServer } from "./main/tcp/server";
+import type { TcpMessage } from "./shared/types/tcp";
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -26,8 +29,22 @@ const createWindow = () => {
     );
   }
 
-  // Open the DevTools.
-  mainWindow.webContents.openDevTools();
+  // Start demo TCP server after the window is ready.
+  startTcpDemoServer(mainWindow);
+
+  // Handle explicit demo requests from the renderer (preload sends this once subscriptions are set).
+  ipcMain.on("tcp:requestDemo", (event) => {
+    const message: TcpMessage = {
+      id: `tcp-demo-request-${Date.now()}`,
+      type: "tcp-demo",
+      payload: {
+        info: "TCP demo message requested from renderer"
+      },
+      timestamp: new Date().toISOString()
+    };
+
+    event.sender.send("tcp:message", message);
+  });
 };
 
 // This method will be called when Electron has finished
