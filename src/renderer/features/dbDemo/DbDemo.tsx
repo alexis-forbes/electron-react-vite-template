@@ -28,6 +28,7 @@ const DbDemo: React.FC = () => {
     setLoading(true);
     try {
       const note = await window.api.dbDemo.addNote(text.trim());
+      console.log(note);
       setNotes((prev) => [...prev, note]);
       setText("");
     } finally {

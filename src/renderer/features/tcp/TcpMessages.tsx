@@ -37,8 +37,8 @@ export const TcpMessages: React.FC = () => {
         Messages received from the Electron TCP service:
       </p>
       <ul className="tcp-demo-list">
-        {messages.map((message) => (
-          <li key={message.id} className="tcp-demo-item">
+        {messages.map((message, index) => (
+          <li key={`${message.id}-${index}`} className="tcp-demo-item">
             <div className="tcp-demo-item-header">
               <span className="tcp-demo-badge">{message.type}</span>
               <span className="tcp-demo-timestamp">{message.timestamp}</span>

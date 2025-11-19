@@ -439,3 +439,41 @@ Medium term:
 - Document IPC/TCP contracts in `src/shared/types/`.
 
 This structure should scale well as you add more business logic, additional TCP connections, and database modules.
+
+---
+
+## Gotchas / troubleshooting
+
+- **Bootstrap stylesheet blocked by CSP**
+
+  - Symptom (in DevTools console):
+
+    > Loading the stylesheet 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css' violates the following Content Security Policy directive: "style-src-elem 'self' 'unsafe-inline'". The action has been blocked.
+
+  - Cause:
+    - `index.html` included a `<link>` tag pointing to the Bootstrap CDN while the Content Security Policy only allowed styles from `self`.
+  - Fix / recommendation:
+    - Remove the external CDN `<link>` from `index.html` and rely on the npm package import in `src/renderer.tsx`:
+
+      ```ts
+      import "bootstrap/dist/css/bootstrap.min.css";
+      import "./renderer/styles/index.scss";
+      ```
+
+    - Keep CSP strict (`style-src 'self' 'unsafe-inline'`) so styles are loaded only from your bundled assets.
+
+- **`window.api` is undefined in the renderer**
+
+  - Symptoms:
+    - Runtime errors like:
+
+      > TypeError: Cannot read properties of undefined (reading 'dbDemo')
+
+      when calling `window.api.dbDemo.*` in React.
+    - `console.log(window.api)` prints `undefined`.
+  - Common causes:
+    - Opening `http://localhost:5173` directly in a normal browser tab (Chrome/Edge) instead of the Electron window. The preload script only runs in the Electron renderer, not in a plain browser.
+    - Preload failing to load (for example, a bad import in `src/preload.ts`) so `contextBridge.exposeInMainWorld("api", ...)` never executes.
+  - How to avoid / fix:
+    - For day-to-day dev, always interact with the app via `npm start`, which runs both Vite and Electron Forge. Use the Electron window that opens, not a separate browser tab, when testing `window.api` calls.
+    - If `window.api` is still undefined in the Electron window, check the DevTools console for preload errors like "Unable to load preload script" or "module not found" and fix those first. Once preload runs successfully, `window.api` will be defined as exposed in `src/preload.ts`.
